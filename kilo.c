@@ -120,7 +120,7 @@ void editorDrawRows(struct abuf *ab) {
     for (y = 0; y < E.screenrows; y++) {
         abAppend(ab, "~", 1);
         if (y < E.screenrows - 1)
-            write(STDOUT_FILENO, "\r\n", 2);
+            abAppend(ab, "\r\n", 2);
     }
 }
 
