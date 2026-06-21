@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <sys/ioctl.h>
+#include <string.h>
 
 /*** defines ***/
 #define CTRL_KEY(k) ((k) & 0x1f)
@@ -51,7 +52,7 @@ void enableRawMode() {
      * emulators. 
      *
      * 3. ISTRIP causes the 8th bit of each input byte to be stripped, meaning it 
-     * will set it to 0. This is probably already turned off. 
+     * will set it to -1. This is probably already turned off. 
      *
      * 4. CS8 is not a flag, it is a bit mask with multiple bits, which we set using 
      * the bitwise-OR (|) operator unlike all the flags we are turning off. It sets the 
@@ -93,22 +94,44 @@ int getCursorPosition(int *rows, int *cols) {
     return 0;
 }
 
+/*** append buffer ***/
+struct abuf {
+    char *b;
+    int len;
+};
+
+void abAppend(struct abuf *ab, const char *s, int len) {
+    char* new = realloc(ab->b, ab->len + len);
+    if (new == NULL) return;
+    memcpy(&new[ab->len], s, len);
+    ab->b = new;
+    ab->len += len;
+}
+
+void abFree(struct abuf *ab) {
+    free(ab->b);
+}
+
+#define ABUF_INIT {NULL, 0}
+
 /*** output ***/
-void editorDrawRows() {
+void editorDrawRows(struct abuf *ab) {
     int y;
     for (y = 0; y < E.screenrows; y++) {
+        abAppend(ab, "~", 1);
         if (y < E.screenrows - 1)
-            write(STDOUT_FILENO, "~\r\n", 3);
-        else 
-            write(STDOUT_FILENO, "~", 1);
+            write(STDOUT_FILENO, "\r\n", 2);
     }
 }
 
 void editorRefreshScreen() {
-    write(STDOUT_FILENO, "\x1b[2J", 4);
-    write(STDOUT_FILENO, "\x1b[H", 3);
-    editorDrawRows();
-    write(STDOUT_FILENO, "\x1b[H", 3);
+    struct abuf ab = ABUF_INIT;
+    abAppend(&ab, "\x1b[2J", 4);
+    abAppend(&ab, "\x1b[H", 3);
+    editorDrawRows(&ab);
+    abAppend(&ab, "\x1b[H", 3);
+    write(STDOUT_FILENO, ab.b, ab.len);
+    abFree(&ab);
 }
 
 int getWindowSize(int *rows, int *cols) {
